@@ -1,0 +1,12 @@
+/.bsp/
+/target/
+/project/target/
+/project/.bloop/
+/project/.metals/
+/project/.idea/
+
+/data/raw/*
+/data/test/
+/data/sample.py
+/src/test/
+docker-compose.yml_back

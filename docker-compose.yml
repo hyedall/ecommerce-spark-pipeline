@@ -1,0 +1,99 @@
+version: '3.8'
+services:
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    ports:
+      - "9870:9870"
+      - "8020:8020"
+    environment:
+      - CLUSTER_NAME=hadoop-cluster
+    volumes:
+      - namenode_data:/hadoop/dfs/namenode
+      - ./docker-conf/namenode/core-site.xml:/opt/hadoop-3.2.1/etc/hadoop/core-site.xml
+    networks:
+      - hadoop
+    hostname: namenode
+    # command: >
+    #   /bin/bash -c "
+    #   /entrypoint.sh /run.sh && 
+    #   hdfs dfs -mkdir -p /user/hive/warehouse && 
+    #   hdfs dfs -chmod 777 /user/hive/warehouse &&
+    #   hdfs dfs -chown -R hive:hive /user/hive/warehouse
+    #   "
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    environment:
+      - CLUSTER_NAME=hadoop-cluster
+    volumes:
+      - datanode_data:/hadoop/dfs/datanode
+      - ./docker-conf/datanode/core-site.xml:/opt/hadoop-3.2.1/etc/hadoop/core-site.xml
+    networks:
+      - hadoop
+    hostname: datanode
+
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-server
+    env_file:
+      - ./hadoop-hive.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"
+    networks:
+      - hadoop
+    hostname: hive-server
+
+
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: hive-metastore
+    env_file:
+      - ./docker-conf/hadoop-hive.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
+    ports:
+      - "9083:9083"
+    networks:
+      - hadoop
+    hostname: hive-metastore    
+
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive-metastore-postgresql
+    networks:
+      - hadoop
+    hostname: hive-metastore-postgresql
+
+
+  spark:
+    image: bitnami/spark:3.5.4
+    container_name: spark
+    depends_on:
+      - hive-server
+      - namenode
+      - datanode
+    networks:
+      - hadoop
+    environment:
+      - SPARK_MASTER_HOST=spark
+    volumes:
+      - ./data:/opt/spark/data
+      - ./project:/opt/spark/project
+      - ./target:/opt/spark/target
+    ports:
+      - "4040:4040"
+    command: tail -f /dev/null
+
+volumes:
+  namenode_data:
+  datanode_data:
+
+networks:
+  hadoop:
+    driver: bridge
