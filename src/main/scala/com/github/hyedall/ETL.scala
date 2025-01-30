@@ -29,9 +29,13 @@ object ETL {
     
     import spark.implicits._
 
-    val lastProcessedFilePath = Paths.get(System.getProperty("user.dir"), "data", "lastProcessedTime.txt").toString
-    val lastProcessedTime = getLastProcessedTime(lastProcessedFilePath)
-    println("!--lastProcessedFilePath" + lastProcessedFilePath)
+    val lastProcessedTimeFilePath = Paths.get(System.getProperty("user.dir"), "data", "lastProcessedTime.txt").toString
+    val lastProcessedTime = getLastProcessedTime(lastProcessedTimeFilePath)
+    println("!--lastProcessedTimeFilePath" + lastProcessedTimeFilePath)
+
+    val lastProcessedDateFilePath = Paths.get(System.getProperty("user.dir"), "data", "lastProcessedDate.txt").toString
+    val lastProcessedDate = getLastProcessedDate(lastProcessedDateFilePath)
+
     val checkpointPath = "data/checkpoint"
 
 
@@ -55,6 +59,53 @@ object ETL {
     // Dataset 변환
     implicit val eventEncoder = Encoders.product[Event]
     val ds: Dataset[Event] = processedDf
+      .select(
+        col("user_id"),
+        col("event_time"),
+        col("event_type"),
+        col("product_id"),
+        col("category_id"),
+        col("category_code"),
+        col("price"),
+        col("user_session"),
+        col("event_time_kst"),
+        col("event_date")
+        ).as[Event](eventEncoder)
+    ds.show()
+
+    // 처리할 날짜 목록 가져오기
+    val datesToProcess = processedDf
+      .filter(col("event_date") > lit(lastProcessedDate))
+      .select("event_date").distinct()
+      .as[String].collect().sorted
+
+    println(s"!-- Processing dates: ${datesToProcess.mkString(", ")}")
+
+    // 날짜별로 ETL 실행
+    for (date <- datesToProcess) {
+      println(s"!-- Processing date: $date")
+      processData(spark, processedDf, outputPath, checkpointPath, lastProcessedTimeFilePath, lastProcessedDateFilePath, date)
+      
+    }
+    spark.stop()
+  }
+
+  /** 날짜별 데이터 처리 함수 */
+  def processData(
+    spark: SparkSession,
+    processedDf: DataFrame,
+    outputPath: String,
+    checkpointPath: String,
+    lastProcessedTimeFilePath: String,
+    lastProcessedDatePath: String,
+    date: String
+  ): Unit = {
+    // 특정 날짜에 해당하는 데이터 필터링
+    val dailyDf = processedDf.filter(col("event_date") === lit(date))
+
+    // Dataset 변환
+    implicit val eventEncoder = Encoders.product[Event]
+    val ds: Dataset[Event] = dailyDf
       .select(
         col("user_id"),
         col("event_time"),
@@ -128,9 +179,11 @@ object ETL {
       // .save("hdfs://218.236.36.173:8020/user/hive/warehouse")
 
     val maxEventTime = finalDf.agg(max("event_time")).collect()(0)(0).toString
-    saveLastProcessedTime(lastProcessedFilePath, maxEventTime)
+    saveLastProcessedTime(lastProcessedTimeFilePath, maxEventTime)
 
-    spark.stop()
+
+    // 처리된 마지막 날짜 저장
+    saveLastProcessedDate(lastProcessedDateFilePath, date)
   }
 
   def getLastProcessedTime(filePath: String): String = {
@@ -151,6 +204,27 @@ object ETL {
     val writer = new PrintWriter(file)
     writer.write(time)
     writer.flush() 
+    println("==save filePath" + filePath)
+    writer.close()
+  }
+
+  def getLastProcessedDate(filePath: String): String = {
+    val path = Paths.get(filePath)
+    println("==load filePath" + filePath)
+
+    if (Files.exists(path)) {
+      val lastProcessedDate = Source.fromFile(filePath).mkString.trim
+      lastProcessedDate
+    } else {
+      "1970-01-01"
+    }
+  }
+  def saveLastProcessedDate(filePath: String, date: String): Unit = {
+    val file = new File(filePath)
+    file.getParentFile.mkdirs()
+    val writer = new PrintWriter(file)
+    writer.write(date)
+    writer.flush()
     println("==save filePath" + filePath)
     writer.close()
   }
