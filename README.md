@@ -115,6 +115,7 @@ LOCATION '/user/hive/warehouse/processed';
 ```
 
 - WAU 쿼리
+    - user_id 기준 WAU
 ```hive
 -- user_id 기준 WAU
 SELECT
@@ -124,6 +125,16 @@ FROM ecommerce_data
 GROUP BY YEAR(event_time_kst), WEEKOFYEAR(event_time_kst)
 ORDER BY weekly;
 
+-- result
++-----------+-------+
+|  weekly   |  wau  |
++-----------+-------+
+| 2019-W44  | 2119  |
++-----------+-------+
+```
+
+    - session_id 기준 WAU
+```hive
 -- session_id 기준 WAU
 SELECT
 CONCAT(YEAR(event_time_kst), '-W', WEEKOFYEAR(event_time_kst)) AS weekly,
@@ -131,4 +142,11 @@ COUNT(DISTINCT session_id) AS WAU
 FROM ecommerce_data
 GROUP BY YEAR(event_time_kst), WEEKOFYEAR(event_time_kst)
 ORDER BY weekly;
+
+-- result
++-----------+-------+
+|  weekly   |  wau  |
++-----------+-------+
+| 2019-W44  | 2447  |
++-----------+-------+
 ```
