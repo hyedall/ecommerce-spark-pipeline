@@ -114,8 +114,8 @@ STORED AS PARQUET
 LOCATION '/user/hive/warehouse/processed';
 ```
 
-- WAU 쿼리
-    - user_id 기준 WAU
+
+- user_id 기준 WAU
 ```hive
 -- user_id 기준 WAU
 SELECT
@@ -133,7 +133,7 @@ ORDER BY weekly;
 +-----------+-------+
 ```
 
-    - session_id 기준 WAU
+- session_id 기준 WAU
 ```hive
 -- session_id 기준 WAU
 SELECT
