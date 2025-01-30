@@ -7,7 +7,7 @@ import com.typesafe.config.ConfigFactory
 import java.io.{File, PrintWriter}
 import java.nio.file.{Files, Paths}
 import scala.io.Source
-import org.apache.spark.sql.Encoders
+import org.apache.spark.sql.{Encoder, Encoders}
 import scala.reflect.runtime.universe._
 
 import java.util.UUID
@@ -56,23 +56,6 @@ object ETL {
 
     println("==getNumPartitions" + rawDf.rdd.getNumPartitions)
 
-    // Dataset 변환
-    implicit val eventEncoder = Encoders.product[Event]
-    val ds: Dataset[Event] = processedDf
-      .select(
-        col("user_id"),
-        col("event_time"),
-        col("event_type"),
-        col("product_id"),
-        col("category_id"),
-        col("category_code"),
-        col("price"),
-        col("user_session"),
-        col("event_time_kst"),
-        col("event_date")
-        ).as[Event](eventEncoder)
-    ds.show()
-
     // 처리할 날짜 목록 가져오기
     val datesToProcess = processedDf
       .filter(col("event_date") > lit(lastProcessedDate))
@@ -97,14 +80,16 @@ object ETL {
     outputPath: String,
     checkpointPath: String,
     lastProcessedTimeFilePath: String,
-    lastProcessedDatePath: String,
+    lastProcessedDateFilePath: String,
     date: String
   ): Unit = {
+    import spark.implicits._
     // 특정 날짜에 해당하는 데이터 필터링
     val dailyDf = processedDf.filter(col("event_date") === lit(date))
 
     // Dataset 변환
-    implicit val eventEncoder = Encoders.product[Event]
+    import org.apache.spark.sql.Encoders
+
     val ds: Dataset[Event] = dailyDf
       .select(
         col("user_id"),
